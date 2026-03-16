@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:dream_diary_test_db;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driverClassName: org.h2.Driver
+    username: sa
+    password: password
+  jpa:
+    database-platform: org.hibernate.dialect.H2Dialect
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    url: jdbc:h2:mem:dream_diary_test_db;MODE=MySQL;DB_CLOSE_DELAY=-1
+    user: sa
+    password: password

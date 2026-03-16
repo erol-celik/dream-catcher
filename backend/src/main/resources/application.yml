@@ -1,0 +1,51 @@
+spring:
+  application:
+    name: dream-diary-api
+
+  datasource:
+    url: jdbc:mysql://localhost:3306/dream_diary?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 25
+        order_inserts: true
+        order_updates: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+app:
+  ai:
+    provider: openai
+    api-key: ${AI_API_KEY:default-key-for-dev}
+    model: gpt-4o-mini
+    timeout-seconds: 30
+  jwt:
+    secret: ${JWT_SECRET:a-very-secure-and-long-default-development-secret-key-must-be-long-enough-for-hs256}
+    expiration-ms: 2592000000 # 30 days
+server:
+  port: 8080
+
+logging:
+  level:
+    com.dreamdiary: DEBUG
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
