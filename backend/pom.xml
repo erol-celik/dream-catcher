@@ -11,8 +11,8 @@
         <relativePath/>
     </parent>
 
-    <groupId>com.dreamdiary</groupId>
-    <artifactId>dream-diary-api</artifactId>
+    <groupId>com.dreamcatcher</groupId>
+    <artifactId>dream-catcher-api</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>Dream Diary API</name>
     <description>AI-powered Dream Diary Backend API</description>

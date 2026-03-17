@@ -1,6 +1,6 @@
 spring:
   application:
-    name: dream-diary-api
+    name: dream-catcher-api
 
   datasource:
     url: jdbc:mysql://localhost:3306/dream_diary?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
@@ -46,6 +46,6 @@ server:
 
 logging:
   level:
-    com.dreamdiary: DEBUG
+    com.dreamcatcher: DEBUG
     org.hibernate.SQL: WARN
     org.hibernate.type.descriptor.sql.BasicBinder: WARN
