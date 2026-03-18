@@ -39,23 +39,57 @@ const DailyActionCTA = () => {
   }, []);
 
   return (
-    <button
-      className="primary"
-      disabled={hasEntryToday}
-      onClick={() => navigate('/entry')}
-      style={{
-        width: '100%',
-        padding: '20px',
-        fontSize: '1.25rem',
-        marginTop: '32px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '12px'
-      }}
-    >
-      {hasEntryToday ? 'Günün Tamamlandı ✨' : 'Bugün Rüya Gördün Mü?'}
-    </button>
+    <div style={{ marginTop: '32px', width: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <button
+        className="primary"
+        disabled={hasEntryToday}
+        onClick={() => navigate('/entry')}
+        style={{
+          width: '100%',
+          padding: '20px',
+          fontSize: '1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '12px'
+        }}
+      >
+        {hasEntryToday ? 'Günün Tamamlandı ✨' : 'Bugün Rüya Gördün Mü?'}
+      </button>
+
+      {!hasEntryToday && (
+        <button
+          onClick={async () => {
+             const focus = prompt("That's okay! What is your main focus for today?");
+             if (focus && focus.trim().length > 0) {
+                const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+                const localDate = new Date(Date.now() - tzOffset).toISOString().slice(0, 19);
+                
+                await db.local_dreams.add({
+                  clientId: crypto.randomUUID(),
+                  text: focus,
+                  sentiment: 'NEUTRAL',
+                  is_synced: 0,
+                  date: localDate,
+                  type: 'DUMMY_FOCUS'
+                });
+                setHasEntryToday(true);
+             }
+          }}
+          style={{
+            width: '100%',
+            padding: '16px',
+            fontSize: '1rem',
+            backgroundColor: 'transparent',
+            color: 'var(--text-muted)',
+            border: '1px solid var(--border)',
+            borderRadius: 'var(--radius-md)'
+          }}
+        >
+          Didn't dream / Don't remember
+        </button>
+      )}
+    </div>
   );
 };
 

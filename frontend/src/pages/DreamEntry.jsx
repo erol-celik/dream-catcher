@@ -1,29 +1,50 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { X, Frown, Meh, Smile } from 'lucide-react';
 import { db } from '../db/db';
+import { InputValidator } from '../utils/InputValidator';
 
 const DreamEntry = () => {
-  const [text, setText] = useState('');
-  const [sentiment, setSentiment] = useState('NEUTRAL'); // Mapped to backend enum Sentiment.java
   const navigate = useNavigate();
+  const location = useLocation();
+  const { editMode, existingDream } = location.state || {};
+
+  const [text, setText] = useState(editMode ? existingDream.text : '');
+  const [sentiment, setSentiment] = useState(editMode ? existingDream.sentiment : 'NEUTRAL'); 
 
   const handleSave = async () => {
     if (text.trim().length < 10) return; // Prevention heuristic
 
+    const validation = InputValidator.validateDreamInput(text);
+    if (!validation.isValid) {
+      alert(validation.message); // Basic toast/alert for now
+      return;
+    }
+
     const tzOffset = (new Date()).getTimezoneOffset() * 60000;
     const localDate = new Date(Date.now() - tzOffset).toISOString().slice(0, 19);
 
-    const newDream = {
-      clientId: crypto.randomUUID(),
-      text,
-      sentiment,
-      is_synced: 0,
-      date: localDate
-    };
-
     try {
-      await db.local_dreams.add(newDream);
+      if (editMode && existingDream) {
+        // UPDATE existing record for Delayed Recall (smart edit)
+        await db.local_dreams.update(existingDream.id, {
+          text,
+          sentiment,
+          is_synced: 0, // Flag for SyncManager to pick it up again
+          type: 'DREAM' // In case we are overwriting something else, ensure it's a dream
+        });
+      } else {
+        // CREATE new record
+        const newDream = {
+          clientId: crypto.randomUUID(),
+          text,
+          sentiment,
+          is_synced: 0,
+          date: localDate,
+          type: 'DREAM'
+        };
+        await db.local_dreams.add(newDream);
+      }
       navigate('/'); // Go back instantly
     } catch (err) {
       console.error('Failed to save to local DB:', err);

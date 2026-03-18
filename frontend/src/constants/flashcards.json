@@ -1,0 +1,11 @@
+{
+  "flashcards": [
+    { "id": "1", "category": "Lucid Dreaming", "text": "Around 50% of people have experienced at least one lucid dream in their lifetime." },
+    { "id": "2", "category": "REM Sleep", "text": "Most vivid dreams occur during Rapid Eye Movement (REM) sleep, which happens about 90 minutes after you fall asleep." },
+    { "id": "3", "category": "History", "text": "In ancient Egypt, people believed that dreams were messages from the gods and sought advice from dream oracles." },
+    { "id": "4", "category": "Science", "text": "You forget 90% of your dreams within the first 10 minutes of waking up." },
+    { "id": "5", "category": "Invention", "text": "The periodic table of elements, the sewing machine, and the structure of DNA were all inspired by dreams." },
+    { "id": "6", "category": "Psychology", "text": "Blind people also dream. People who were born blind experience dreams involving their other senses like sound, smell, and touch." },
+    { "id": "7", "category": "Culture", "text": "The Roman Senate once decreed that striking or interpreting significant dreams must be reported to the state." }
+  ]
+}

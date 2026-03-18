@@ -7,6 +7,11 @@ class SyncManagerService {
     this._syncing = false;
     this._debounceTimer = null;
     this._subscription = null;
+    this.analysisListeners = [];
+  }
+
+  onAnalysisTriggered(callback) {
+    this.analysisListeners.push(callback);
   }
 
   async syncUnsyncedDreams() {
@@ -14,66 +19,76 @@ class SyncManagerService {
     this._syncing = true;
 
     try {
-      const unsyncedDreams = await db.local_dreams
+      const unsyncedRecords = await db.local_dreams
         .where('is_synced').equals(0)
         .toArray();
 
-      if (unsyncedDreams.length === 0) {
-        console.log('[SyncManager] No unsynced dreams.');
+      if (unsyncedRecords.length === 0) {
+        console.log('[SyncManager] No unsynced records.');
         return;
       }
 
-      console.log(`[SyncManager] Syncing ${unsyncedDreams.length} dreams...`);
+      console.log(`[SyncManager] Syncing ${unsyncedRecords.length} records...`);
 
-      // Map local records to backend CreateDreamRequest contract
-      const dreamsPayload = unsyncedDreams.map(d => {
+      const dreamsPayload = [];
+      const activitiesPayload = [];
+
+      unsyncedRecords.forEach(d => {
         let localDateStr = d.date;
         if (d.date && d.date.endsWith('Z')) {
           const tzOffset = (new Date()).getTimezoneOffset() * 60000;
           localDateStr = new Date(new Date(d.date).getTime() - tzOffset).toISOString().slice(0, 19);
         }
-        return {
-          clientId: d.clientId,
-          content: d.text,
-          sentiment: d.sentiment,
-          dreamDate: localDateStr.split('T')[0] // LocalDate format: YYYY-MM-DD
-        };
+        
+        if (d.type === 'DUMMY_FOCUS') {
+          activitiesPayload.push({
+            clientId: d.clientId,
+            activityType: 'DUMMY_FOCUS',
+            activityDate: localDateStr.split('T')[0]
+          });
+        } else {
+          dreamsPayload.push({
+            clientId: d.clientId,
+            content: d.text,
+            sentiment: d.sentiment,
+            dreamDate: localDateStr.split('T')[0]
+          });
+        }
       });
 
-      // SyncRequest contract: { dreams: [...], activities: [...] }
       const response = await api.post('/sync', {
         dreams: dreamsPayload,
-        activities: [] // No activities tracked in the current UI yet
+        activities: activitiesPayload
       });
 
-      const { syncedDreams } = response.data;
+      const { syncedDreams, syncedActivities, newAnalysisTriggered } = response.data;
 
-      if (syncedDreams && syncedDreams.length > 0) {
-        // Update local DB based on per-item results from backend
-        const successClientIds = syncedDreams
+      if (newAnalysisTriggered) {
+        console.log('[SyncManager] New Analysis Triggered! Notifying UI...');
+        this.analysisListeners.forEach(cb => cb());
+      }
+
+      const allSynced = [...(syncedDreams || []), ...(syncedActivities || [])];
+
+      if (allSynced.length > 0) {
+        const successClientIds = allSynced
           .filter(r => r.success)
           .map(r => r.clientId);
 
         if (successClientIds.length > 0) {
-          // Find local IDs by clientId and mark them synced
-          const localDreams = await db.local_dreams
+          const localRecords = await db.local_dreams
             .where('clientId')
             .anyOf(successClientIds)
             .toArray();
 
           await db.local_dreams.bulkUpdate(
-            localDreams.map(d => ({
+            localRecords.map(d => ({
               key: d.id,
               changes: { is_synced: 1 }
             }))
           );
 
-          console.log(`[SyncManager] Successfully synced ${successClientIds.length} dreams.`);
-        }
-
-        const failures = syncedDreams.filter(r => !r.success);
-        if (failures.length > 0) {
-          console.warn('[SyncManager] Some dreams failed to sync:', failures);
+          console.log(`[SyncManager] Successfully synced ${successClientIds.length} records.`);
         }
       }
 

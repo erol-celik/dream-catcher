@@ -106,3 +106,33 @@ input:focus, textarea:focus {
   outline: 2px solid var(--primary);
   border-color: transparent;
 }
+
+/* Floating Action Button (FAB) */
+.fab {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background-color: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 15px rgba(107, 70, 193, 0.4);
+  cursor: pointer;
+  z-index: 1000;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: none;
+}
+
+.fab:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(107, 70, 193, 0.6);
+  background-color: #553C9A;
+}
+
+.fab:active {
+  transform: scale(0.95);
+}
