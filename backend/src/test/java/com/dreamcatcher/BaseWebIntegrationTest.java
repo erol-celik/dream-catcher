@@ -52,7 +52,8 @@ public abstract class BaseWebIntegrationTest extends BaseIntegrationTest {
         // Mock Weekly Report
         WeeklyAnalysisResult dummyWeekly = new WeeklyAnalysisResult(
                 "Testing consistency",
-                "This is a mock weekly report summary."
+                "This is a mock weekly report summary.",
+                List.of("mock-theme-1")
         );
         when(aiClient.generateWeeklyReport(any()))
                 .thenReturn(dummyWeekly);

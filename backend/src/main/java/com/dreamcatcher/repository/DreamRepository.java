@@ -40,7 +40,7 @@ public interface DreamRepository extends JpaRepository<Dream, Long> {
            "LEFT JOIN FETCH d.sentiment " +
            "WHERE d.user.id = :userId " +
            "ORDER BY d.dreamDate DESC")
-    List<Dream> findByUserIdWithTagsAndSentiment(@Param("userId") Long userId);
+    List<Dream> findByUserIdWithTagsAndSentiment(@Param("userId") Long userId, org.springframework.data.domain.Pageable pageable);
 
     /**
      * Fetches a single dream with tags and sentiment eagerly loaded.

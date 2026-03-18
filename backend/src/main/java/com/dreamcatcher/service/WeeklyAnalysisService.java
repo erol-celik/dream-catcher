@@ -6,7 +6,7 @@ import com.dreamcatcher.entity.DreamTag;
 import com.dreamcatcher.entity.User;
 import com.dreamcatcher.entity.WeeklyReport;
 import com.dreamcatcher.enums.ReportStatus;
-import com.dreamcatcher.repository.DreamTagRepository;
+import com.dreamcatcher.repository.DreamRepository;
 import com.dreamcatcher.repository.UserRepository;
 import com.dreamcatcher.repository.WeeklyReportRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,10 +16,10 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
+
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+
 
 /**
  * Service responsible for generating the 7th-dream weekly psychological report.
@@ -30,63 +30,78 @@ import java.util.stream.Collectors;
 public class WeeklyAnalysisService {
 
     private final AiClient aiClient;
-    private final DreamTagRepository dreamTagRepository;
+    private final DreamRepository dreamRepository;
     private final WeeklyReportRepository weeklyReportRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
 
     /**
-     * Generates a weekly report asynchronously.
-     * Fetches up to 35 most recent tags (5 tags per dream * 7 dreams),
-     * groups them by frequency, and sends them to the AI.
+     * Generates a subconscious pattern analysis asynchronously.
+     * Fetches the last 5 or 7 dreams depending on the hybrid cycle trigger.
      */
     @Async
     @Transactional
-    public void generateWeeklyReportAsync(Long userId) {
-        log.info("Starting async weekly report generation for user={}", userId);
+    public void generateWeeklyReportAsync(Long userId, long totalDreams) {
+        log.info("Starting async pattern analysis for user={}, totalDreams={}", userId, totalDreams);
 
         try {
             User user = userRepository.findById(userId).orElse(null);
             if (user == null) {
-                log.warn("User {} no longer exists, aborting weekly report.", userId);
+                log.warn("User {} no longer exists, aborting pattern analysis.", userId);
                 return;
             }
 
-            // Fetch recent tags for the week (proxying recent dreams via a custom query)
-            // Note: A custom query in DreamTagRepository might be needed to get the exact last 7 dreams' tags.
-            // For now, we fetch the most recent 35 tags for the user.
-            List<DreamTag> recentTags = dreamTagRepository.findTop35ByDream_UserIdOrderByCreatedAtDesc(userId);
+            int limit = (totalDreams == 5) ? 5 : 7;
             
-            if (recentTags.isEmpty()) {
-                log.info("No tags found for user={}, skipping weekly report.", userId);
+            // Fetch recent dreams with tags and sentiments
+            List<com.dreamcatcher.entity.Dream> recentDreams = dreamRepository.findByUserIdWithTagsAndSentiment(
+                    userId, org.springframework.data.domain.PageRequest.of(0, limit)
+            );
+            
+            if (recentDreams.isEmpty()) {
+                log.info("No dreams found for user={}, skipping pattern analysis.", userId);
                 return;
             }
 
-            // Group tags by their string value and count frequencies to optimize LLM tokens
-            Map<String, Long> tagFrequencies = recentTags.stream()
-                    .collect(Collectors.groupingBy(DreamTag::getTag, Collectors.counting()));
+            // Reverse to chronological order for better AI trend analysis
+            java.util.Collections.reverse(recentDreams);
 
-            String tagsJson = objectMapper.writeValueAsString(tagFrequencies);
+            // Construct token-optimized JSON payload
+            List<Map<String, Object>> minifiedDreams = recentDreams.stream().map(dream -> {
+                Map<String, Object> map = new java.util.HashMap<>();
+                map.put("day", dream.getDreamDate().getDayOfMonth());
+                
+                List<String> tags = dream.getTags() != null ? 
+                        dream.getTags().stream().map(DreamTag::getTag).toList() : 
+                        java.util.Collections.emptyList();
+                map.put("tags", tags);
+                
+                String sentiment = (dream.getSentiment() != null && dream.getSentiment().getSentiment() != null) ? 
+                        dream.getSentiment().getSentiment().name() : "NEUTRAL";
+                map.put("sentiment", sentiment);
+                return map;
+            }).toList();
 
-            log.debug("Sending tags to AI for user={}: {}", userId, tagsJson);
+            String tagsJson = objectMapper.writeValueAsString(minifiedDreams);
+            log.debug("Sending minified dreams to AI for user={}: {}", userId, tagsJson);
+            
             WeeklyAnalysisResult result = aiClient.generateWeeklyReport(tagsJson);
 
-            // Create JSON for the combined report content
             String reportContentJson = objectMapper.writeValueAsString(result);
 
-            // Save the report
+            // Save the report using the existing WeeklyReport structure
             WeeklyReport report = WeeklyReport.builder()
                     .user(user)
-                    .weekStart(LocalDate.now().minusDays(7))
-                    .weekEnd(LocalDate.now())
+                    .weekStart(recentDreams.get(0).getDreamDate()) // first dream date
+                    .weekEnd(recentDreams.get(recentDreams.size() - 1).getDreamDate()) // last dream date
                     .inputTags(tagsJson)
                     .reportContent(reportContentJson)
-                    .dreamCount(7) // trigger count
+                    .dreamCount(limit)
                     .status(ReportStatus.COMPLETED)
                     .build();
 
             weeklyReportRepository.save(report);
-            log.info("Weekly report generated successfully for user={}", userId);
+            log.info("Subconscious pattern analysis generated successfully for user={}", userId);
 
         } catch (Exception e) {
             log.error("Failed to generate weekly report for user={}: {}", userId, e.getMessage());

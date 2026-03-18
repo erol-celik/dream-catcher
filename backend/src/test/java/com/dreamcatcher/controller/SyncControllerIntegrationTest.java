@@ -43,7 +43,8 @@ class SyncControllerIntegrationTest extends BaseWebIntegrationTest {
         CreateDreamRequest dreamRequest = new CreateDreamRequest(
                 UUID.randomUUID().toString(),
                 "A vivid dream about testing the offline sync feature.",
-                LocalDate.now()
+                LocalDate.now(),
+                "GREAT"
         );
 
         DailyActivityRequest activityRequest = new DailyActivityRequest(

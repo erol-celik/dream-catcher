@@ -1,9 +1,12 @@
 import { db } from '../db/db';
+import { liveQuery } from 'dexie';
 import api from '../api/axios';
 
 class SyncManagerService {
   constructor() {
     this._syncing = false;
+    this._debounceTimer = null;
+    this._subscription = null;
   }
 
   async syncUnsyncedDreams() {
@@ -23,11 +26,19 @@ class SyncManagerService {
       console.log(`[SyncManager] Syncing ${unsyncedDreams.length} dreams...`);
 
       // Map local records to backend CreateDreamRequest contract
-      const dreamsPayload = unsyncedDreams.map(d => ({
-        clientId: d.clientId,
-        content: d.text,
-        dreamDate: d.date.split('T')[0] // LocalDate format: YYYY-MM-DD
-      }));
+      const dreamsPayload = unsyncedDreams.map(d => {
+        let localDateStr = d.date;
+        if (d.date && d.date.endsWith('Z')) {
+          const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+          localDateStr = new Date(new Date(d.date).getTime() - tzOffset).toISOString().slice(0, 19);
+        }
+        return {
+          clientId: d.clientId,
+          content: d.text,
+          sentiment: d.sentiment,
+          dreamDate: localDateStr.split('T')[0] // LocalDate format: YYYY-MM-DD
+        };
+      });
 
       // SyncRequest contract: { dreams: [...], activities: [...] }
       const response = await api.post('/sync', {
@@ -73,26 +84,67 @@ class SyncManagerService {
     }
   }
 
+  /**
+   * Debounced sync trigger — prevents rapid-fire syncs when
+   * multiple records are written in quick succession.
+   */
+  _debouncedSync() {
+    if (this._debounceTimer) clearTimeout(this._debounceTimer);
+    this._debounceTimer = setTimeout(() => {
+      if (navigator.onLine) {
+        this.syncUnsyncedDreams();
+      }
+    }, 1500);
+  }
+
   initBackgroundSync() {
-    // Trigger sync when coming back online
+    // 1. Dexie liveQuery: triggers sync when unsynced records appear
+    const observable = liveQuery(() =>
+      db.local_dreams.where('is_synced').equals(0).count()
+    );
+    this._subscription = observable.subscribe({
+      next: (unsyncedCount) => {
+        if (unsyncedCount > 0) {
+          console.log(`[SyncManager] ${unsyncedCount} unsynced record(s) detected.`);
+          this._debouncedSync();
+        }
+      },
+      error: (err) => console.error('[SyncManager] liveQuery error:', err)
+    });
+
+    // 2. Visibility API: sync when tab comes back to foreground
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
+        console.log('[SyncManager] Tab visible. Triggering sync...');
+        this._debouncedSync();
+      }
+    });
+
+    // 3. Online event: sync when network is restored
     window.addEventListener('online', () => {
       console.log('[SyncManager] Device is online. Starting sync...');
       this.syncUnsyncedDreams();
     });
 
-    // Periodic sync every 30 seconds when online
-    setInterval(() => {
-      if (navigator.onLine) {
-        this.syncUnsyncedDreams();
-      }
-    }, 30000);
-
-    // Initial sync on boot
+    // 4. Initial sync on boot (small delay to let auth finish)
     if (navigator.onLine) {
-      // Small delay to let auth finish
       setTimeout(() => this.syncUnsyncedDreams(), 2000);
+    }
+  }
+
+  /**
+   * Cleanup subscriptions — call when unmounting the app.
+   */
+  destroy() {
+    if (this._subscription) {
+      this._subscription.unsubscribe();
+      this._subscription = null;
+    }
+    if (this._debounceTimer) {
+      clearTimeout(this._debounceTimer);
     }
   }
 }
 
 export const SyncManager = new SyncManagerService();
+

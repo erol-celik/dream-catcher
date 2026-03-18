@@ -9,8 +9,11 @@ import com.dreamcatcher.exception.DreamValidationException;
 import com.dreamcatcher.exception.DuplicateResourceException;
 import com.dreamcatcher.exception.ResourceNotFoundException;
 import com.dreamcatcher.repository.DreamRepository;
+import com.dreamcatcher.repository.DreamSentimentRepository;
 import com.dreamcatcher.repository.UserRepository;
 import com.dreamcatcher.validation.DreamTextValidator;
+import com.dreamcatcher.enums.Sentiment;
+import com.dreamcatcher.entity.DreamSentiment;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,10 +31,11 @@ import java.util.List;
 @Slf4j
 public class DreamService {
 
-    private static final int WEEKLY_ANALYSIS_TRIGGER_COUNT = 7;
+
 
     private final DreamRepository dreamRepository;
     private final UserRepository userRepository;
+    private final DreamSentimentRepository dreamSentimentRepository;
     private final DreamTextValidator textValidator;
     private final StreakService streakService;
     private final UserService userService;
@@ -74,17 +78,28 @@ public class DreamService {
                 .build();
         dream = dreamRepository.save(dream);
 
+        // Save initial sentiment if provided by client
+        if (request.sentiment() != null) {
+            Sentiment sentimentEnum = Sentiment.fromString(request.sentiment());
+            DreamSentiment initialSentiment = DreamSentiment.builder()
+                    .dream(dream)
+                    .sentiment(sentimentEnum)
+                    .confidence(new java.math.BigDecimal("1.00")) // User provided
+                    .build();
+            dreamSentimentRepository.save(initialSentiment);
+        }
+
         // Update streak
         streakService.recordActivity(userId);
 
         // 1. Trigger async tag extraction and sentiment analysis
         dreamAnalysisService.analyzeDreamAsync(dream.getId(), dream.getContent());
 
-        // 2. Check if the 7th-dream trigger should fire the weekly analysis
+        // 2. Subconscious Pattern Analysis Trigger (The 5/7 Hybrid Cycle)
         long validDreamCount = dreamRepository.countValidDreamsByUserId(userId);
-        if (validDreamCount > 0 && validDreamCount % WEEKLY_ANALYSIS_TRIGGER_COUNT == 0) {
-            log.info("7th dream trigger activated for user={}, totalValid={}", userId, validDreamCount);
-            weeklyAnalysisService.generateWeeklyReportAsync(userId);
+        if (validDreamCount == 5 || (validDreamCount > 5 && (validDreamCount - 5) % 7 == 0)) {
+            log.info("Subconscious Pattern Analysis triggered for user={}, totalValid={}", userId, validDreamCount);
+            weeklyAnalysisService.generateWeeklyReportAsync(userId, validDreamCount);
         }
 
         log.info("Dream created: id={}, wordCount={}", dream.getId(), dream.getWordCount());
@@ -119,7 +134,18 @@ public class DreamService {
                             .isValid(wordCount >= 10)
                             .dreamDate(request.dreamDate())
                             .build();
-                    return dreamRepository.save(dream);
+                    dream = dreamRepository.save(dream);
+
+                    if (request.sentiment() != null) {
+                        Sentiment sentimentEnum = Sentiment.fromString(request.sentiment());
+                        DreamSentiment initialSentiment = DreamSentiment.builder()
+                                .dream(dream)
+                                .sentiment(sentimentEnum)
+                                .confidence(new java.math.BigDecimal("1.00"))
+                                .build();
+                        dreamSentimentRepository.save(initialSentiment);
+                    }
+                    return dream;
                 });
     }
 
@@ -129,7 +155,7 @@ public class DreamService {
      */
     @Transactional(readOnly = true)
     public List<DreamResponse> getDreamsByUser(Long userId) {
-        return dreamRepository.findByUserIdWithTagsAndSentiment(userId)
+        return dreamRepository.findByUserIdWithTagsAndSentiment(userId, org.springframework.data.domain.Pageable.unpaged())
                 .stream()
                 .map(this::toResponse)
                 .toList();

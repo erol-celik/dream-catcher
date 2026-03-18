@@ -50,6 +50,8 @@ public class DreamAnalysisService {
 
             // Save Tags
             if (result.tags() != null) {
+                dreamTagRepository.deleteByDream(dream);
+                
                 List<DreamTag> tags = result.tags().stream().map(tag ->
                         DreamTag.builder()
                                 .dream(dream)
@@ -61,16 +63,11 @@ public class DreamAnalysisService {
 
             // Save Sentiment
             if (result.sentiment() != null) {
-                try {
-                    Sentiment sentimentEnum = Sentiment.valueOf(result.sentiment().toUpperCase());
-                    DreamSentiment sentiment = DreamSentiment.builder()
-                            .dream(dream)
-                            .sentiment(sentimentEnum)
-                            .build();
-                    dreamSentimentRepository.save(sentiment);
-                } catch (IllegalArgumentException e) {
-                    log.error("AI returned invalid sentiment category: {}", result.sentiment());
-                }
+                Sentiment sentimentEnum = Sentiment.fromString(result.sentiment());
+                DreamSentiment sentiment = dreamSentimentRepository.findByDream(dream).orElseGet(DreamSentiment::new);
+                sentiment.setDream(dream);
+                sentiment.setSentiment(sentimentEnum);
+                dreamSentimentRepository.save(sentiment);
             }
 
         } catch (Exception e) {
@@ -114,15 +111,11 @@ public class DreamAnalysisService {
 
         // Save Sentiment
         if (result.sentiment() != null) {
-            try {
-                Sentiment sentimentEnum = Sentiment.valueOf(result.sentiment().toUpperCase());
-                DreamSentiment sentiment = dreamSentimentRepository.findByDream(dream).orElseGet(DreamSentiment::new);
-                sentiment.setDream(dream);
-                sentiment.setSentiment(sentimentEnum);
-                dreamSentimentRepository.save(sentiment);
-            } catch (IllegalArgumentException e) {
-                log.error("AI returned invalid sentiment category: {}", result.sentiment());
-            }
+            Sentiment sentimentEnum = Sentiment.fromString(result.sentiment());
+            DreamSentiment sentiment = dreamSentimentRepository.findByDream(dream).orElseGet(DreamSentiment::new);
+            sentiment.setDream(dream);
+            sentiment.setSentiment(sentimentEnum);
+            dreamSentimentRepository.save(sentiment);
         }
 
         return result;

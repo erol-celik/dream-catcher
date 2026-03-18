@@ -11,12 +11,15 @@ const DreamEntry = () => {
   const handleSave = async () => {
     if (text.trim().length < 10) return; // Prevention heuristic
 
+    const tzOffset = (new Date()).getTimezoneOffset() * 60000;
+    const localDate = new Date(Date.now() - tzOffset).toISOString().slice(0, 19);
+
     const newDream = {
       clientId: crypto.randomUUID(),
       text,
       sentiment,
       is_synced: 0,
-      date: new Date().toISOString()
+      date: localDate
     };
 
     try {

@@ -21,6 +21,8 @@ public record CreateDreamRequest(
         String content,
 
         @NotNull(message = "Dream date is required")
-        LocalDate dreamDate
+        LocalDate dreamDate,
+
+        String sentiment
 ) {
 }

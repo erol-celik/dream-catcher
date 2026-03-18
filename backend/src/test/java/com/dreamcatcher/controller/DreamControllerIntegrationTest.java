@@ -15,7 +15,6 @@ import java.time.LocalDate;
 import java.util.Map;
 import java.util.UUID;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -49,7 +48,8 @@ class DreamControllerIntegrationTest extends BaseWebIntegrationTest {
         CreateDreamRequest request = new CreateDreamRequest(
                 UUID.randomUUID().toString(),
                 "I was flying over a city made of crystal.",
-                LocalDate.now()
+                LocalDate.now(),
+                null
         );
 
         mockMvc.perform(post("/api/v1/dreams")
@@ -63,7 +63,8 @@ class DreamControllerIntegrationTest extends BaseWebIntegrationTest {
         CreateDreamRequest request = new CreateDreamRequest(
                 UUID.randomUUID().toString(),
                 "I was flying over a city made of crystal. The sky was purple and the sun was a vibrant silver.",
-                LocalDate.now()
+                LocalDate.now(),
+                "NIGHTMARE"
         );
 
         mockMvc.perform(post("/api/v1/dreams")
@@ -84,7 +85,8 @@ class DreamControllerIntegrationTest extends BaseWebIntegrationTest {
         CreateDreamRequest request = new CreateDreamRequest(
                 UUID.randomUUID().toString(),
                 "short",
-                LocalDate.now()
+                LocalDate.now(),
+                null
         );
 
         mockMvc.perform(post("/api/v1/dreams")
@@ -92,6 +94,6 @@ class DreamControllerIntegrationTest extends BaseWebIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.message").value("Dream description is too short or nonsensical."));
+                .andExpect(jsonPath("$.message").value("Dream must be at least 10 words. Current: 1 words."));
     }
 }

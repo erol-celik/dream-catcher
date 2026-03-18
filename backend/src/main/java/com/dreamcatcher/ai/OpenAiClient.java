@@ -8,7 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
-import java.time.Duration;
+
 import java.util.List;
 import java.util.Map;
 
@@ -60,7 +60,7 @@ public class OpenAiClient implements AiClient {
     @Override
     public WeeklyAnalysisResult generateWeeklyReport(String weeklyTagsJson) {
         if (!"openai".equalsIgnoreCase(aiProperties.getProvider())) {
-            return new WeeklyAnalysisResult("Weekly Reflection", "A general overview of your current state of mind.");
+            return new WeeklyAnalysisResult("Weekly Reflection", "A general overview of your current state of mind.", java.util.List.of());
         }
 
         Map<String, Object> requestBody = Map.of(
