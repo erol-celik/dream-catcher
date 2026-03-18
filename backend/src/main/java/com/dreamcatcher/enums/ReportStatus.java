@@ -8,5 +8,6 @@ public enum ReportStatus {
     PENDING,
     PROCESSING,
     COMPLETED,
-    FAILED
+    FAILED,
+    INSUFFICIENT_DATA
 }

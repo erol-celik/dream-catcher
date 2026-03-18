@@ -72,6 +72,7 @@ class SyncControllerIntegrationTest extends BaseWebIntegrationTest {
                 .andExpect(jsonPath("$.syncedActivities.length()").value(1))
                 .andExpect(jsonPath("$.syncedActivities[0].success").value(true))
                 .andExpect(jsonPath("$.totalSynced").value(2))
-                .andExpect(jsonPath("$.totalFailed").value(0));
+                .andExpect(jsonPath("$.totalFailed").value(0))
+                .andExpect(jsonPath("$.newAnalysisTriggered").value(false));
     }
 }

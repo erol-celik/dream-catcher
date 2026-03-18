@@ -37,10 +37,10 @@ public class WeeklyReport extends BaseEntity {
     @Column(name = "week_end", nullable = false)
     private LocalDate weekEnd;
 
-    @Column(name = "input_tags", nullable = false, columnDefinition = "JSON")
+    @Column(name = "input_tags", columnDefinition = "JSON")
     private String inputTags;
 
-    @Column(name = "report_content", nullable = false, columnDefinition = "JSON")
+    @Column(name = "report_content", columnDefinition = "JSON")
     private String reportContent;
 
     @Column(name = "dream_count", nullable = false)

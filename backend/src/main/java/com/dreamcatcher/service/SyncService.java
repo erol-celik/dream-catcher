@@ -7,10 +7,17 @@ import com.dreamcatcher.dto.response.SyncResponse;
 import com.dreamcatcher.dto.response.SyncResponse.SyncedItemResult;
 import com.dreamcatcher.entity.DailyActivity;
 import com.dreamcatcher.entity.Dream;
+import com.dreamcatcher.entity.WeeklyReport;
+import com.dreamcatcher.enums.ReportStatus;
+import com.dreamcatcher.repository.DreamRepository;
+import com.dreamcatcher.repository.WeeklyReportRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
+import java.time.DayOfWeek;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,6 +38,10 @@ public class SyncService {
     private final DreamService dreamService;
     private final DailyActivityService dailyActivityService;
     private final StreakService streakService;
+    
+    private final WeeklyReportRepository weeklyReportRepository;
+    private final DreamRepository dreamRepository;
+    private final WeeklyAnalysisService weeklyAnalysisService;
 
     /**
      * Processes a bulk sync request.
@@ -57,10 +68,57 @@ public class SyncService {
         } catch (Exception e) {
             log.warn("Failed to update streak after sync for user={}: {}", userId, e.getMessage());
         }
+        
+        // Lazy evaluate previous calendar week
+        boolean newAnalysisTriggered = false;
+        try {
+            newAnalysisTriggered = evaluatePreviousWeek(userId);
+        } catch (Exception e) {
+            log.error("Failed to evaluate previous week for user={}: {}", userId, e.getMessage());
+        }
 
         log.info("Sync completed for user={}: synced={}, failed={}", userId, totalSynced, totalFailed);
 
-        return new SyncResponse(dreamResults, activityResults, totalSynced, totalFailed);
+        return new SyncResponse(dreamResults, activityResults, totalSynced, totalFailed, newAnalysisTriggered);
+    }
+
+    /**
+     * Synchronously checks if a report exists for the previous Monday-Sunday week.
+     * If not, counts dreams and saves either an INSUFFICIENT_DATA or PENDING report.
+     * Only calls the async AI service if PENDING is saved.
+     */
+    private boolean evaluatePreviousWeek(Long userId) {
+        LocalDate today = LocalDate.now();
+        LocalDate lastSunday = today.with(TemporalAdjusters.previous(DayOfWeek.SUNDAY));
+        LocalDate lastMonday = lastSunday.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        
+        if (weeklyReportRepository.existsByUserIdAndWeekStart(userId, lastMonday)) {
+            return false;
+        }
+        
+        long validDreamsCount = dreamRepository.countValidDreamsByUserIdAndDateRange(userId, lastMonday, lastSunday);
+        
+        WeeklyReport report = new WeeklyReport();
+        // Set user reference (only ID is needed for saving, we construct a detached entity)
+        com.dreamcatcher.entity.User userRef = new com.dreamcatcher.entity.User();
+        userRef.setId(userId);
+        report.setUser(userRef);
+        report.setWeekStart(lastMonday);
+        report.setWeekEnd(lastSunday);
+        report.setDreamCount((int) validDreamsCount);
+        
+        if (validDreamsCount < 3) {
+            report.setStatus(ReportStatus.INSUFFICIENT_DATA);
+            weeklyReportRepository.save(report);
+            log.info("Created INSUFFICIENT_DATA report for user={}, weekStart={}, count={}", userId, lastMonday, validDreamsCount);
+            return false;
+        } else {
+            report.setStatus(ReportStatus.PENDING);
+            report = weeklyReportRepository.save(report);
+            log.info("Created PENDING report for user={}, weekStart={}, count={}. Triggering analysis.", userId, lastMonday, validDreamsCount);
+            weeklyAnalysisService.processReportAsync(report.getId(), lastMonday, lastSunday);
+            return true;
+        }
     }
 
     private List<SyncedItemResult> syncDreams(Long userId, List<CreateDreamRequest> dreams) {

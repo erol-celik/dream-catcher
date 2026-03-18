@@ -54,7 +54,7 @@ public class OpenAiClient implements AiClient {
         );
 
         String jsonResponse = callApi(requestBody);
-        return parseResponse(jsonResponse, DreamAnalysisResult.class);
+        return parseResponse(stripMarkdownCodeBlock(jsonResponse), DreamAnalysisResult.class);
     }
 
     @Override
@@ -73,7 +73,21 @@ public class OpenAiClient implements AiClient {
         );
 
         String jsonResponse = callApi(requestBody);
-        return parseResponse(jsonResponse, WeeklyAnalysisResult.class);
+        return parseResponse(stripMarkdownCodeBlock(jsonResponse), WeeklyAnalysisResult.class);
+    }
+
+    private String stripMarkdownCodeBlock(String text) {
+        if (text == null) return null;
+        String trimmed = text.trim();
+        if (trimmed.startsWith("```json")) {
+            trimmed = trimmed.substring(7);
+        } else if (trimmed.startsWith("```")) {
+            trimmed = trimmed.substring(3);
+        }
+        if (trimmed.endsWith("```")) {
+            trimmed = trimmed.substring(0, trimmed.length() - 3);
+        }
+        return trimmed.trim();
     }
 
     private String callApi(Map<String, Object> requestBody) {

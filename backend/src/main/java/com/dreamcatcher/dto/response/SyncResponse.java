@@ -11,7 +11,8 @@ public record SyncResponse(
         List<SyncedItemResult> syncedDreams,
         List<SyncedItemResult> syncedActivities,
         int totalSynced,
-        int totalFailed
+        int totalFailed,
+        boolean newAnalysisTriggered
 ) {
 
     /**

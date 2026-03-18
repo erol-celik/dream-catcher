@@ -40,7 +40,6 @@ public class DreamService {
     private final StreakService streakService;
     private final UserService userService;
     private final DreamAnalysisService dreamAnalysisService;
-    private final WeeklyAnalysisService weeklyAnalysisService;
 
     /**
      * Creates a new dream entry after heuristic validation.
@@ -94,13 +93,6 @@ public class DreamService {
 
         // 1. Trigger async tag extraction and sentiment analysis
         dreamAnalysisService.analyzeDreamAsync(dream.getId(), dream.getContent());
-
-        // 2. Subconscious Pattern Analysis Trigger (The 5/7 Hybrid Cycle)
-        long validDreamCount = dreamRepository.countValidDreamsByUserId(userId);
-        if (validDreamCount == 5 || (validDreamCount > 5 && (validDreamCount - 5) % 7 == 0)) {
-            log.info("Subconscious Pattern Analysis triggered for user={}, totalValid={}", userId, validDreamCount);
-            weeklyAnalysisService.generateWeeklyReportAsync(userId, validDreamCount);
-        }
 
         log.info("Dream created: id={}, wordCount={}", dream.getId(), dream.getWordCount());
         return toResponse(dream);

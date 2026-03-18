@@ -24,6 +24,9 @@ public interface DreamRepository extends JpaRepository<Dream, Long> {
 
     List<Dream> findByUserIdAndDreamDateBetween(Long userId, LocalDate start, LocalDate end);
 
+    @Query("SELECT COUNT(d) FROM Dream d WHERE d.user.id = :userId AND d.isValid = true AND d.tags IS NOT EMPTY AND d.dreamDate BETWEEN :start AND :end")
+    long countValidDreamsByUserIdAndDateRange(@Param("userId") Long userId, @Param("start") LocalDate start, @Param("end") LocalDate end);
+
     long countByUserId(Long userId);
 
     @Query("SELECT COUNT(d) FROM Dream d WHERE d.user.id = :userId AND d.isValid = true")
@@ -41,6 +44,14 @@ public interface DreamRepository extends JpaRepository<Dream, Long> {
            "WHERE d.user.id = :userId " +
            "ORDER BY d.dreamDate DESC")
     List<Dream> findByUserIdWithTagsAndSentiment(@Param("userId") Long userId, org.springframework.data.domain.Pageable pageable);
+
+    @Query("SELECT DISTINCT d FROM Dream d " +
+           "LEFT JOIN FETCH d.tags " +
+           "LEFT JOIN FETCH d.sentiment " +
+           "WHERE d.user.id = :userId " +
+           "AND d.dreamDate BETWEEN :start AND :end " +
+           "ORDER BY d.dreamDate DESC")
+    List<Dream> findByUserIdWithTagsAndSentimentAndDateRange(@Param("userId") Long userId, @Param("start") LocalDate start, @Param("end") LocalDate end);
 
     /**
      * Fetches a single dream with tags and sentiment eagerly loaded.

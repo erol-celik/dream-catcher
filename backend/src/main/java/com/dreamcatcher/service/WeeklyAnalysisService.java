@@ -36,51 +36,51 @@ public class WeeklyAnalysisService {
     private final ObjectMapper objectMapper;
 
     /**
-     * Generates a subconscious pattern analysis asynchronously.
-     * Fetches the last 5 or 7 dreams depending on the hybrid cycle trigger.
+     * Processes a pending pattern analysis asynchronously.
+     * Fetches dreams within the week's dates, calls the AI, and saves the output.
      */
     @Async
     @Transactional
-    public void generateWeeklyReportAsync(Long userId, long totalDreams) {
-        log.info("Starting async pattern analysis for user={}, totalDreams={}", userId, totalDreams);
+    public void processReportAsync(Long reportId, java.time.LocalDate weekStart, java.time.LocalDate weekEnd) {
+        log.info("Starting async pattern analysis for reportId={}", reportId);
 
         try {
-            User user = userRepository.findById(userId).orElse(null);
-            if (user == null) {
-                log.warn("User {} no longer exists, aborting pattern analysis.", userId);
+            WeeklyReport report = weeklyReportRepository.findById(reportId).orElse(null);
+            if (report == null || report.getStatus() != ReportStatus.PENDING) {
+                log.warn("Report {} no longer exists or is not PENDING, aborting pattern analysis.", reportId);
                 return;
             }
 
-            int limit = (totalDreams == 5) ? 5 : 7;
+            Long userId = report.getUser().getId();
             
-            // Fetch recent dreams with tags and sentiments
-            List<com.dreamcatcher.entity.Dream> recentDreams = dreamRepository.findByUserIdWithTagsAndSentiment(
-                    userId, org.springframework.data.domain.PageRequest.of(0, limit)
+            // Fetch recent dreams with tags and sentiments within the date range
+            List<com.dreamcatcher.entity.Dream> recentDreams = dreamRepository.findByUserIdWithTagsAndSentimentAndDateRange(
+                    userId, weekStart, weekEnd
             );
             
             if (recentDreams.isEmpty()) {
-                log.info("No dreams found for user={}, skipping pattern analysis.", userId);
+                log.warn("No dreams found for reportId={}, marking as FAILED.", reportId);
+                report.setStatus(ReportStatus.FAILED);
+                weeklyReportRepository.save(report);
                 return;
             }
 
-            // Reverse to chronological order for better AI trend analysis
-            java.util.Collections.reverse(recentDreams);
-
             // Construct token-optimized JSON payload
-            List<Map<String, Object>> minifiedDreams = recentDreams.stream().map(dream -> {
-                Map<String, Object> map = new java.util.HashMap<>();
-                map.put("day", dream.getDreamDate().getDayOfMonth());
-                
-                List<String> tags = dream.getTags() != null ? 
-                        dream.getTags().stream().map(DreamTag::getTag).toList() : 
-                        java.util.Collections.emptyList();
-                map.put("tags", tags);
-                
-                String sentiment = (dream.getSentiment() != null && dream.getSentiment().getSentiment() != null) ? 
-                        dream.getSentiment().getSentiment().name() : "NEUTRAL";
-                map.put("sentiment", sentiment);
-                return map;
-            }).toList();
+            List<Map<String, Object>> minifiedDreams = recentDreams.stream()
+                .filter(d -> d.getIsValid() != null && d.getIsValid())
+                .filter(d -> d.getTags() != null && !d.getTags().isEmpty())
+                .map(dream -> {
+                    Map<String, Object> map = new java.util.HashMap<>();
+                    map.put("day", dream.getDreamDate().getDayOfMonth());
+                    
+                    List<String> tags = dream.getTags().stream().map(DreamTag::getTag).toList();
+                    map.put("tags", tags);
+                    
+                    String sentiment = (dream.getSentiment() != null && dream.getSentiment().getSentiment() != null) ? 
+                            dream.getSentiment().getSentiment().name() : "NEUTRAL";
+                    map.put("sentiment", sentiment);
+                    return map;
+                }).toList();
 
             String tagsJson = objectMapper.writeValueAsString(minifiedDreams);
             log.debug("Sending minified dreams to AI for user={}: {}", userId, tagsJson);
@@ -89,23 +89,23 @@ public class WeeklyAnalysisService {
 
             String reportContentJson = objectMapper.writeValueAsString(result);
 
-            // Save the report using the existing WeeklyReport structure
-            WeeklyReport report = WeeklyReport.builder()
-                    .user(user)
-                    .weekStart(recentDreams.get(0).getDreamDate()) // first dream date
-                    .weekEnd(recentDreams.get(recentDreams.size() - 1).getDreamDate()) // last dream date
-                    .inputTags(tagsJson)
-                    .reportContent(reportContentJson)
-                    .dreamCount(limit)
-                    .status(ReportStatus.COMPLETED)
-                    .build();
+            report.setInputTags(tagsJson);
+            report.setReportContent(reportContentJson);
+            report.setStatus(ReportStatus.COMPLETED);
 
             weeklyReportRepository.save(report);
-            log.info("Subconscious pattern analysis generated successfully for user={}", userId);
+            log.info("Subconscious pattern analysis completed successfully for reportId={}", reportId);
 
         } catch (Exception e) {
-            log.error("Failed to generate weekly report for user={}: {}", userId, e.getMessage());
-            // Handled via standard unhandled error metric monitoring in production
+            log.error("Failed to generate weekly report for reportId={}: {}", reportId, e.getMessage());
+            try {
+                weeklyReportRepository.findById(reportId).ifPresent(r -> {
+                    r.setStatus(ReportStatus.FAILED);
+                    weeklyReportRepository.save(r);
+                });
+            } catch (Exception inner) {
+                log.error("Failed to set status to FAILED for reportId={}", reportId);
+            }
         }
     }
 
