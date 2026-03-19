@@ -12,6 +12,11 @@ class SyncManagerService {
 
   onAnalysisTriggered(callback) {
     this.analysisListeners.push(callback);
+    return () => this.offAnalysisTriggered(callback);
+  }
+
+  offAnalysisTriggered(callback) {
+    this.analysisListeners = this.analysisListeners.filter(cb => cb !== callback);
   }
 
   async syncUnsyncedDreams() {
@@ -33,7 +38,15 @@ class SyncManagerService {
       const dreamsPayload = [];
       const activitiesPayload = [];
 
+      // OPTIMISTIC VERIFICATION: Capture state before request
+      const syncSnapshot = new Map();
+
       unsyncedRecords.forEach(d => {
+        syncSnapshot.set(d.clientId, {
+          text: d.text,
+          updated_at: d.updated_at
+        });
+
         let localDateStr = d.date;
         if (d.date && d.date.endsWith('Z')) {
           const tzOffset = (new Date()).getTimezoneOffset() * 60000;
@@ -81,14 +94,30 @@ class SyncManagerService {
             .anyOf(successClientIds)
             .toArray();
 
-          await db.local_dreams.bulkUpdate(
-            localRecords.map(d => ({
-              key: d.id,
-              changes: { is_synced: 1 }
-            }))
-          );
+          const recordsToMarkSynced = [];
 
-          console.log(`[SyncManager] Successfully synced ${successClientIds.length} records.`);
+          localRecords.forEach(currentRecord => {
+            const snapshot = syncSnapshot.get(currentRecord.clientId);
+            
+            // Re-verify the captured state
+            const isContentSame = currentRecord.text === snapshot?.text;
+            const isTimestampSame = currentRecord.updated_at === snapshot?.updated_at;
+
+            if (isContentSame && isTimestampSame) {
+              // Safely set is_synced: 1
+              recordsToMarkSynced.push({
+                key: currentRecord.id, // the internal Dexie id
+                changes: { is_synced: 1 }
+              });
+            } else {
+              console.log(`[SyncManager] Record ${currentRecord.clientId} modified during sync. Skipping is_synced update.`);
+            }
+          });
+
+          if (recordsToMarkSynced.length > 0) {
+            await db.local_dreams.bulkUpdate(recordsToMarkSynced);
+            console.log(`[SyncManager] Successfully synced ${recordsToMarkSynced.length} records.`);
+          }
         }
       }
 
@@ -162,4 +191,3 @@ class SyncManagerService {
 }
 
 export const SyncManager = new SyncManagerService();
-

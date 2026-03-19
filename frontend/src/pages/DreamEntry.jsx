@@ -9,15 +9,34 @@ const DreamEntry = () => {
   const location = useLocation();
   const { editMode, existingDream } = location.state || {};
 
-  const [text, setText] = useState(editMode ? existingDream.text : '');
-  const [sentiment, setSentiment] = useState(editMode ? existingDream.sentiment : 'NEUTRAL'); 
+  const [text, setText] = useState(() => {
+    if (editMode && existingDream) return existingDream.text;
+    const draft = localStorage.getItem('dream_draft');
+    return draft || '';
+  });
+  
+  const [sentiment, setSentiment] = useState(editMode && existingDream ? existingDream.sentiment : 'NEUTRAL'); 
+
+  useEffect(() => {
+    if (editMode) return;
+
+    const timeoutId = setTimeout(() => {
+      if (text.trim().length > 0) {
+        localStorage.setItem('dream_draft', text);
+      } else {
+        localStorage.removeItem('dream_draft');
+      }
+    }, 1000);
+
+    return () => clearTimeout(timeoutId);
+  }, [text, editMode]);
 
   const handleSave = async () => {
-    if (text.trim().length < 10) return; // Prevention heuristic
+    if (text.trim().length < 10) return;
 
     const validation = InputValidator.validateDreamInput(text);
     if (!validation.isValid) {
-      alert(validation.message); // Basic toast/alert for now
+      alert(validation.message);
       return;
     }
 
@@ -26,29 +45,41 @@ const DreamEntry = () => {
 
     try {
       if (editMode && existingDream) {
-        // UPDATE existing record for Delayed Recall (smart edit)
         await db.local_dreams.update(existingDream.id, {
           text,
           sentiment,
-          is_synced: 0, // Flag for SyncManager to pick it up again
-          type: 'DREAM' // In case we are overwriting something else, ensure it's a dream
+          is_synced: 0,
+          updated_at: new Date().toISOString(),
+          type: 'DREAM'
         });
       } else {
-        // CREATE new record
         const newDream = {
           clientId: crypto.randomUUID(),
           text,
           sentiment,
           is_synced: 0,
           date: localDate,
+          updated_at: new Date().toISOString(),
           type: 'DREAM'
         };
         await db.local_dreams.add(newDream);
       }
-      navigate('/'); // Go back instantly
+
+      if (!editMode) {
+        localStorage.removeItem('dream_draft');
+      }
+
+      navigate('/');
     } catch (err) {
       console.error('Failed to save to local DB:', err);
     }
+  };
+
+  const handleCancel = () => {
+    if (!editMode) {
+      localStorage.removeItem('dream_draft');
+    }
+    navigate('/');
   };
 
   const isSaveDisabled = text.trim().length < 10;
@@ -58,7 +89,7 @@ const DreamEntry = () => {
       {/* Header / Actions */}
       <div style={{ padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button 
-          onClick={() => navigate('/')} 
+          onClick={handleCancel} 
           style={{ background: 'transparent', padding: '8px', border: 'none', color: 'var(--text-muted)' }}
           aria-label="Cancel"
         >

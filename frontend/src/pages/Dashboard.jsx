@@ -16,15 +16,16 @@ const Dashboard = () => {
   const [todayEntry, setTodayEntry] = useState(null);
 
   useEffect(() => {
-    // Listen for AI triggers from SyncManager
-    SyncManager.onAnalysisTriggered(() => {
+    let analysisTimerId;
+    const analysisCallback = () => {
       setIsGeneratingReport(true);
       setIsReportReady(false);
-      
-      setTimeout(() => {
+      if (analysisTimerId) clearTimeout(analysisTimerId);
+      analysisTimerId = setTimeout(() => {
         setIsReportReady(true);
-      }, 15000); // 15 seconds mock wait
-    });
+      }, 15000);
+    };
+    const unsubscribeAnalysis = SyncManager.onAnalysisTriggered(analysisCallback);
 
     // liveQuery for today's entries to instantly update Priority UI
     const today = new Date().toISOString().split('T')[0];
@@ -48,7 +49,11 @@ const Dashboard = () => {
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      if (analysisTimerId) clearTimeout(analysisTimerId);
+      unsubscribeAnalysis && unsubscribeAnalysis();
+      subscription.unsubscribe();
+    };
   }, []);
 
   const handleReveal = () => {
