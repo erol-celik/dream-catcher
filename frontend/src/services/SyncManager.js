@@ -12,11 +12,6 @@ class SyncManagerService {
 
   onAnalysisTriggered(callback) {
     this.analysisListeners.push(callback);
-    return () => this.offAnalysisTriggered(callback);
-  }
-
-  offAnalysisTriggered(callback) {
-    this.analysisListeners = this.analysisListeners.filter(cb => cb !== callback);
   }
 
   async syncUnsyncedDreams() {
@@ -191,3 +186,4 @@ class SyncManagerService {
 }
 
 export const SyncManager = new SyncManagerService();
+

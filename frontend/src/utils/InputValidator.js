@@ -13,7 +13,7 @@ export class InputValidator {
    */
   static validateDreamInput(text) {
     if (!text || text.trim().length === 0) {
-      return { isValid: false, message: "Please write your dream." };
+      return { isValid: false, message: "Lütfen rüyanızı yazın." };
     }
 
     const cleanText = text.trim().toLowerCase();
@@ -37,15 +37,9 @@ export class InputValidator {
       return this._rejection();
     }
 
-    // --- Punctuation Stripping (Layer 3 & 4 Prep) ---
-    // Strip punctuation so only alphanumeric characters and spaces remain
-    const textWithoutPunctuation = cleanText
-      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "")
-      .replace(/\s{2,}/g, " ");
-
     // Layer 3: Word Length Anomaly 
     // Any single word without spaces longer than 20 chars is likely gibberish
-    const words = textWithoutPunctuation.split(/\s+/);
+    const words = cleanText.split(/\s+/);
     for (let word of words) {
       if (word.length > 20) {
         return this._rejection();
@@ -53,12 +47,16 @@ export class InputValidator {
     }
 
     // Layer 4: Mini-Dictionary Intersection
-    // At least 2 common storytelling words must be present for a narrative
-    // Using Regex word boundaries to prevent false negatives from punctuation/formatting
-    const dictionaryRegex = new RegExp("\\b(" + CONJUNCTIONS_AND_VERBS.join("|") + ")\\b", "gi");
-    const matches = textWithoutPunctuation.match(dictionaryRegex);
+    // At least 2 common storytelling words (Turkish/English) must be present for a narrative
+    let intersectionCount = 0;
+    for (let word of words) {
+      if (CONJUNCTIONS_AND_VERBS.includes(word)) {
+        intersectionCount++;
+        if (intersectionCount >= 2) break;
+      }
+    }
 
-    if (!matches || matches.length < 2) {
+    if (intersectionCount < 2) {
       return this._rejection();
     }
 

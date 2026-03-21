@@ -5,6 +5,7 @@ import DailyActionCTA from '../components/DailyActionCTA';
 import AnalysisWaitingState from '../components/AnalysisWaitingState';
 import { useNavigate } from 'react-router-dom';
 import { SyncManager } from '../services/SyncManager';
+import { notificationService } from '../services/NotificationService';
 import { liveQuery } from 'dexie';
 import { db } from '../db/db';
 
@@ -16,16 +17,17 @@ const Dashboard = () => {
   const [todayEntry, setTodayEntry] = useState(null);
 
   useEffect(() => {
-    let analysisTimerId;
-    const analysisCallback = () => {
+    notificationService.requestPermissions();
+
+    // Listen for AI triggers from SyncManager
+    SyncManager.onAnalysisTriggered(() => {
       setIsGeneratingReport(true);
       setIsReportReady(false);
-      if (analysisTimerId) clearTimeout(analysisTimerId);
-      analysisTimerId = setTimeout(() => {
+      
+      setTimeout(() => {
         setIsReportReady(true);
-      }, 15000);
-    };
-    const unsubscribeAnalysis = SyncManager.onAnalysisTriggered(analysisCallback);
+      }, 15000); // 15 seconds mock wait
+    });
 
     // liveQuery for today's entries to instantly update Priority UI
     const today = new Date().toISOString().split('T')[0];
@@ -49,11 +51,7 @@ const Dashboard = () => {
       }
     });
 
-    return () => {
-      if (analysisTimerId) clearTimeout(analysisTimerId);
-      unsubscribeAnalysis && unsubscribeAnalysis();
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleReveal = () => {

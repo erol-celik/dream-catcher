@@ -9,13 +9,10 @@ const AnalysisWaitingState = ({ isReportReady, onReveal }) => {
 
   useEffect(() => {
     let intervalId;
-    let isMounted = true;
     
     const loadNextCard = async () => {
       const card = await engine.getNextFlashcard();
-      if (isMounted) {
-        setFlashcard(card);
-      }
+      setFlashcard(card);
     };
 
     // Load initial card
@@ -29,7 +26,6 @@ const AnalysisWaitingState = ({ isReportReady, onReveal }) => {
     }
 
     return () => {
-      isMounted = false;
       if (intervalId) clearInterval(intervalId);
     };
   }, [isReportReady]);
