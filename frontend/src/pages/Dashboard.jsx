@@ -5,7 +5,6 @@ import DailyActionCTA from '../components/DailyActionCTA';
 import AnalysisWaitingState from '../components/AnalysisWaitingState';
 import { useNavigate } from 'react-router-dom';
 import { SyncManager } from '../services/SyncManager';
-import { notificationService } from '../services/NotificationService';
 import { liveQuery } from 'dexie';
 import { db } from '../db/db';
 
@@ -17,8 +16,6 @@ const Dashboard = () => {
   const [todayEntry, setTodayEntry] = useState(null);
 
   useEffect(() => {
-    notificationService.requestPermissions();
-
     // Listen for AI triggers from SyncManager
     SyncManager.onAnalysisTriggered(() => {
       setIsGeneratingReport(true);
